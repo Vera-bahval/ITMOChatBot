@@ -1,12 +1,14 @@
 import asyncio
 import logging
 import os
+import re
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from dotenv import load_dotenv
 from data_parser import DataParser
 from vector_db import VectorDB
 from ai_assistant import AIAssistant
+
 load_dotenv()
 
 logging.basicConfig(
@@ -14,6 +16,85 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+#Анализатор контекста сгенерирован ИИ
+class ContextAnalyzer:
+    """Анализатор контекста пользователя"""
+    
+    def __init__(self):
+        self.background_patterns = {
+            'programming': [
+                r'\b(программист|разработчик|developer|python|java|javascript|c\+\+|c#)\b',
+                r'\b(frontend|backend|fullstack|веб-разработка|мобильная разработка)\b',
+                r'\b(git|github|алгоритм|структуры данных|код|программирование)\b',
+                r'\b(react|vue|angular|django|flask|spring|node\.js)\b'
+            ],
+            'analytics': [
+                r'\b(аналитик|analyst|данные|data|статистика|excel|sql|tableau)\b',
+                r'\b(бизнес-аналитик|data scientist|исследования|метрики|bi)\b',
+                r'\b(pandas|numpy|r|статистический анализ|отчеты|dashboard)\b',
+                r'\b(power bi|qlik|looker|matplotlib|seaborn)\b'
+            ],
+            'management': [
+                r'\b(менеджер|manager|руководитель|управление|проект|команда)\b',
+                r'\b(product manager|project manager|scrum|agile|планирование)\b',
+                r'\b(лидерство|координация|бюджет|стратегия|roadmap)\b',
+                r'\b(jira|confluence|trello|asana|управляю|руковожу)\b'
+            ],
+            'ml_experience': [
+                r'\b(машинное обучение|ml|deep learning|нейронные сети|ai)\b',
+                r'\b(tensorflow|pytorch|scikit-learn|keras|pandas)\b',
+                r'\b(kaggle|модели|алгоритмы ml|feature engineering)\b',
+                r'\b(computer vision|nlp|обработка изображений|текста)\b'
+            ],
+            'education': [
+                r'\b(студент|учусь|университет|институт|бакалавр|специалист)\b',
+                r'\b(диплом|курсовая|экзамен|сессия|преподаватель|вуз)\b',
+                r'\b(итмо|спбгу|мгу|вшэ|политех|мфти|мифи)\b'
+            ]
+        }
+        
+        self.experience_patterns = {
+            'junior': r'\b(новичок|junior|начинающий|без опыта|первый раз|изучаю)\b',
+            'middle': r'\b(middle|опытный|несколько лет|работаю|год|лет опыта)\b',
+            'senior': r'\b(senior|эксперт|много лет|руководил|ведущий|главный)\b'
+        }
+        
+        self.interest_patterns = {
+            'computer_vision': r'\b(компьютерное зрение|cv|изображения|картинки|opencv|yolo)\b',
+            'nlp': r'\b(nlp|обработка текста|чат-бот|языковые модели|gpt|bert)\b',
+            'product_development': r'\b(продукт|product|пользователи|метрики|growth|mvp)\b',
+            'research': r'\b(исследования|наука|научная|статьи|публикации|конференции)\b'
+        }
+    
+    def analyze_message(self, message: str) -> dict:
+        """Анализ сообщения для извлечения информации о пользователе"""
+        message_lower = message.lower()
+        
+        analysis = {
+            'background': {},
+            'experience_level': None,
+            'interests': [],
+            'education_mentioned': False
+        }
+
+        for category, patterns in self.background_patterns.items():
+            detected = any(re.search(pattern, message_lower, re.IGNORECASE) for pattern in patterns)
+            if category == 'education':
+                analysis['education_mentioned'] = detected
+            else:
+                analysis['background'][category] = detected
+
+        for level, pattern in self.experience_patterns.items():
+            if re.search(pattern, message_lower, re.IGNORECASE):
+                analysis['experience_level'] = level
+                break
+
+        for interest, pattern in self.interest_patterns.items():
+            if re.search(pattern, message_lower, re.IGNORECASE):
+                analysis['interests'].append(interest)
+        
+        return analysis
 
 class ITMOChatBot:
     def __init__(self):
@@ -24,6 +105,7 @@ class ITMOChatBot:
         
         self.vector_db = VectorDB()
         self.ai_assistant = AIAssistant()
+        self.context_analyzer = ContextAnalyzer()
         self.user_contexts = {} 
         self.initialized = False
         
@@ -46,28 +128,39 @@ class ITMOChatBot:
             logger.error(f"Ошибка инициализации данных: {e}")
             raise
 
-    #Обработка команд бота сгенерирована с помощью ИИ
-    
+    #Логика обработчика команд сгенерирована ИИ
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик команды /start"""
         try:
             if not self.initialized:
                 await update.message.reply_text("Инициализация бота, подождите немного...")
                 await self.initialize_data()
             
             user_id = update.effective_user.id
-            self.user_contexts[user_id] = {'stage': 'start', 'background': {}}
+            self.user_contexts[user_id] = {
+                'stage': 'start', 
+                'background': {},
+                'experience_level': None,
+                'interests': [],
+                'message_history': []
+            }
             
             welcome_message = """
-🎓 Привет! Я помогу выбрать магистерскую программу ИТМО в области ИИ.
+🎓 *Добро пожаловать!*
 
-📚 Доступные программы:
+Я помогу выбрать магистерскую программу ИТМО в области ИИ и составить план обучения.
+
+📚 *Доступные программы:*
 • Искусственный интеллект
 • Управление ИИ-продуктами/AI Product
 
-Расскажите о своем образовании и опыте, чтобы я мог дать персональные рекомендации!
+💬 *Расскажите о себе для персональных рекомендаций:*
+• Какой у вас опыт работы?
+• Какие технологии знаете?
+• Какие цели преследуете?
+
+Например: "Я программист на Python, работаю 3 года, интересует ML"
             """
-            await update.message.reply_text(welcome_message)
+            await update.message.reply_text(welcome_message, parse_mode='Markdown')
             
         except Exception as e:
             logger.error(f"Ошибка в start_command: {e}")
@@ -77,28 +170,80 @@ class ITMOChatBot:
         """Обработчик команды /help"""
         try:
             help_text = """
-🤖 Доступные команды:
+🤖 *Команды:*
 /start - Начать диалог
-/help - Показать справку
-/reset - Сбросить контекст беседы
+/help - Справка
+/reset - Сбросить контекст
+/profile - Показать ваш профиль
 
-❓ Примеры вопросов:
-• "Какие предметы изучают на программе ИИ?"
+❓ *Примеры вопросов:*
 • "Чем отличаются программы?"
 • "Как поступить без экзаменов?"
-• "Какие выборные дисциплины лучше взять?"
+• "Какую программу выбрать программисту?"
+• "Какие выборные дисциплины взять?"
+• "Сколько стоит обучение?"
+
+💡 *Совет:* Расскажите о своем опыте для лучших рекомендаций!
             """
-            await update.message.reply_text(help_text)
+            await update.message.reply_text(help_text, parse_mode='Markdown')
             
         except Exception as e:
             logger.error(f"Ошибка в help_command: {e}")
+    
+    async def profile_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Показать профиль пользователя"""
+        try:
+            user_id = update.effective_user.id
+            
+            if user_id not in self.user_contexts:
+                await update.message.reply_text("Сначала напишите /start")
+                return
+            
+            user_context = self.user_contexts[user_id]
+            background = user_context.get('background', {})
+            
+            if not any(background.values()):
+                profile_text = "📋 *Ваш профиль пуст*\n\nРасскажите о своем опыте для персональных рекомендаций!"
+            else:
+                profile_parts = ["📋 *Ваш профиль:*\n"]
+                
+                if background.get('programming'):
+                    profile_parts.append("💻 Опыт программирования")
+                if background.get('analytics'):
+                    profile_parts.append("📊 Опыт аналитики/работы с данными")
+                if background.get('management'):
+                    profile_parts.append("👥 Опыт управления/менеджмента")
+                if background.get('ml_experience'):
+                    profile_parts.append("🤖 Опыт машинного обучения")
+                
+                if user_context.get('experience_level'):
+                    level_emoji = {'junior': '🌱', 'middle': '📈', 'senior': '🚀'}
+                    level = user_context['experience_level']
+                    profile_parts.append(f"{level_emoji.get(level, '📊')} Уровень: {level}")
+                
+                if user_context.get('interests'):
+                    interests = ', '.join(user_context['interests'])
+                    profile_parts.append(f"🎯 Интересы: {interests}")
+                
+                profile_text = "\n".join(profile_parts)
+            
+            await update.message.reply_text(profile_text, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Ошибка в profile_command: {e}")
     
     async def reset_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Сброс контекста пользователя"""
         try:
             user_id = update.effective_user.id
-            self.user_contexts[user_id] = {'stage': 'start', 'background': {}}
-            await update.message.reply_text("Контекст сброшен. Можете начать заново!")
+            self.user_contexts[user_id] = {
+                'stage': 'start', 
+                'background': {},
+                'experience_level': None,
+                'interests': [],
+                'message_history': []
+            }
+            await update.message.reply_text("🔄 Контекст сброшен. Можете начать заново!")
             
         except Exception as e:
             logger.error(f"Ошибка в reset_command: {e}")
@@ -112,15 +257,28 @@ class ITMOChatBot:
             
             user_id = update.effective_user.id
             message = update.message.text
+
             if user_id not in self.user_contexts:
-                self.user_contexts[user_id] = {'stage': 'start', 'background': {}}
+                self.user_contexts[user_id] = {
+                    'stage': 'start', 
+                    'background': {},
+                    'experience_level': None,
+                    'interests': [],
+                    'message_history': []
+                }
+            
+            self.user_contexts[user_id]['message_history'].append(message)
+ 
+            analysis = self.context_analyzer.analyze_message(message)
+            self._update_user_context(user_id, analysis)
+   
             relevant_docs = await self.vector_db.search(message)
+
             response = await self.ai_assistant.generate_response(
                 message, 
                 relevant_docs, 
                 self.user_contexts[user_id]
             )
-            await self._update_user_context(user_id, message)
             
             await update.message.reply_text(response, parse_mode='Markdown')
             
@@ -130,19 +288,22 @@ class ITMOChatBot:
                 "Извините, произошла ошибка. Попробуйте переформулировать вопрос."
             )
     
-    async def _update_user_context(self, user_id: int, message: str):
-        """Обновление контекста пользователя"""
+    def _update_user_context(self, user_id: int, analysis: dict):
+        """Обновление контекста пользователя на основе анализа"""
         try:
-            message_lower = message.lower()
-            
-            if 'программист' in message_lower or 'разработчик' in message_lower:
-                self.user_contexts[user_id]['background']['programming'] = True
-            
-            if 'аналитик' in message_lower or 'данные' in message_lower:
-                self.user_contexts[user_id]['background']['analytics'] = True
-            
-            if 'менеджер' in message_lower or 'управление' in message_lower:
-                self.user_contexts[user_id]['background']['management'] = True
+            user_context = self.user_contexts[user_id]
+
+            for category, detected in analysis['background'].items():
+                if detected:
+                    user_context['background'][category] = True
+            if analysis.get('experience_level'):
+                user_context['experience_level'] = analysis['experience_level']
+            if analysis.get('interests'):
+                current_interests = set(user_context.get('interests', []))
+                new_interests = set(analysis['interests'])
+                user_context['interests'] = list(current_interests | new_interests)
+            if any(analysis['background'].values()) or analysis.get('experience_level') or analysis.get('interests'):
+                logger.info(f"Обновлен контекст пользователя {user_id}: {user_context}")
                 
         except Exception as e:
             logger.error(f"Ошибка обновления контекста: {e}")
@@ -154,6 +315,7 @@ class ITMOChatBot:
             application = Application.builder().token(self.bot_token).build()
             application.add_handler(CommandHandler("start", self.start_command))
             application.add_handler(CommandHandler("help", self.help_command))
+            application.add_handler(CommandHandler("profile", self.profile_command))
             application.add_handler(CommandHandler("reset", self.reset_command))
             application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
             
