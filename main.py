@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import re
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from dotenv import load_dotenv
 from data_parser import DataParser
@@ -118,8 +118,8 @@ class ITMOChatBot:
         
         try:
             parser = DataParser()
-            programs_data = await parser.parse_programs()
-            await self.vector_db.create_database(programs_data)
+            programs_data, curriculum = await parser.parse_programs()
+            await self.vector_db.create_database(programs_data,  curriculum)
             
             self.initialized = True
             logger.info("Данные готовы!")
@@ -143,6 +143,12 @@ class ITMOChatBot:
                 'interests': [],
                 'message_history': []
             }
+
+            keyboard = [
+            ["/start", "/help"],
+            ["/profile", "/reset"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             
             welcome_message = """
 🎓 *Добро пожаловать!*
@@ -160,7 +166,7 @@ class ITMOChatBot:
 
 Например: "Я программист на Python, работаю 3 года, интересует ML"
             """
-            await update.message.reply_text(welcome_message, parse_mode='Markdown')
+            await update.message.reply_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
             
         except Exception as e:
             logger.error(f"Ошибка в start_command: {e}")
