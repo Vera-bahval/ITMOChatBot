@@ -11,7 +11,7 @@ class AIAssistant:
     async def generate_response(self, user_message, relevant_docs, user_context):
         """Генерация ответа с использованием DeepSeek"""
         context_text = self._format_context(relevant_docs)
-        background_info = self._format_user_background(user_context.get('background', {}))
+        background_info = self._format_user_background(user_context)
         system_prompt = self._create_system_prompt()
         user_prompt = self._create_user_prompt(user_message, context_text, background_info)
         response = await self._call_openrouter_api(system_prompt, user_prompt)
@@ -30,17 +30,30 @@ class AIAssistant:
         return "\n\n".join(context_parts)
     
     #Обработка информации о пользователе сгеннерирована ИИ
-    def _format_user_background(self, background):
-        """Форматирование информации о пользователе"""
+    def format_user_background(self, user_context):
+    """Форматирование информации о пользователе"""
+        background_dict = user_context.get('background')
         background_parts = []
         
-        if background.get('programming'):
+        if background_dict.get('programming'):
             background_parts.append("Пользователь имеет опыт программирования")
-        if background.get('analytics'):
+        if background_dict.get('analytics'):
             background_parts.append("Пользователь имеет опыт работы с данными/аналитикой")
-        if background.get('management'):
+        if background_dict.get('management'):
             background_parts.append("Пользователь имеет опыт управления/менеджмента")
+        if background_dict.get('ml_experience'):
+            background_parts.append("Пользователь имеет опыт в машинном обучении")
+        if background_dict.get('education'):
+            background_parts.append("У пользователя есть высшее образование")
         
+        experience = user_context.get('experience_level')
+        if experience:
+            background_parts.append(f"У пользователя следующий профессиональный уровень: {experience}")
+        
+        interest_list = user_context.get('interests')
+        if interest_list:
+            background_parts.append(f"У пользователя следующие интересы: {', '.join(str(interest) for interest in interest_list)}")
+            
         return " | ".join(background_parts) if background_parts else "Информация о бэкграунде пользователя отсутствует"
     
     #Системный промпт сгеннерирован ИИ
