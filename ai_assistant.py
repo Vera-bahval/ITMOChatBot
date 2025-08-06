@@ -30,8 +30,7 @@ class AIAssistant:
         return "\n\n".join(context_parts)
     
     #Обработка информации о пользователе сгеннерирована ИИ
-    def format_user_background(self, user_context):
-    """Форматирование информации о пользователе"""
+    def _format_user_background(self, user_context):
         background_dict = user_context.get('background')
         background_parts = []
         
