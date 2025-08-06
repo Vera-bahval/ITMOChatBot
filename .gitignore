@@ -7,6 +7,5 @@ env/
 venv/
 .venv/
 .env
-data/*.npy
-data/*.json
 *.log
+cur
