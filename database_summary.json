@@ -1,0 +1,37 @@
+{
+  "ai": {
+    "title": "Искусственный интеллект",
+    "document_types": {
+      "curriculum": 5,
+      "description_lead": 1,
+      "description_full": 1,
+      "career": 1,
+      "study_info": 1,
+      "cost": 1,
+      "direction": 3,
+      "admission_method": 21,
+      "faq": 8,
+      "partners": 1,
+      "achievements": 2,
+      "contacts": 1
+    },
+    "total_docs": 46
+  },
+  "ai_product": {
+    "title": "Управление ИИ-продуктами/AI Product",
+    "document_types": {
+      "curriculum": 5,
+      "description_lead": 1,
+      "description_full": 1,
+      "career": 1,
+      "study_info": 1,
+      "cost": 1,
+      "direction": 1,
+      "admission_method": 7,
+      "faq": 6,
+      "partners": 1,
+      "contacts": 1
+    },
+    "total_docs": 26
+  }
+}
